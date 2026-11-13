@@ -13,14 +13,15 @@ header{position:sticky;top:0;z-index:5;background:#0d1425eF;backdrop-filter:blur
 button,.button{border:0;border-radius:12px;padding:10px 15px;background:var(--accent);color:#081126;font-weight:800;cursor:pointer}button:disabled{opacity:.5;cursor:wait}.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line)}.danger{background:#4a2030;color:#ffdce2;border:1px solid #7c3548}
 main{max-width:1120px;margin:28px auto;padding:0 18px}.hero{padding:28px;border:1px solid var(--line);border-radius:22px;background:linear-gradient(120deg,#202e51,#18213a);margin-bottom:22px}.hero h1{margin:0 0 8px;font-size:clamp(26px,5vw,40px)}.hero p{margin:0;color:var(--muted)}
 .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}.toolbar input{flex:1;min-width:200px}
-input,select,textarea{width:100%;padding:12px 13px;border-radius:11px;border:1px solid var(--line);background:#0e172b;color:var(--text);font:inherit}textarea{min-height:110px;resize:vertical}.filters{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 22px}.chip{background:#17223b;color:var(--muted);border:1px solid var(--line);padding:8px 13px;border-radius:999px}.chip.active{background:#344a80;color:white;border-color:#7898ee}
-.tag-checks{display:flex;flex-wrap:wrap;gap:8px}
-.tag-check{display:flex;align-items:center;gap:6px;background:#0e172b;border:1px solid var(--line);border-radius:999px;padding:7px 12px;cursor:pointer;font-size:13px;color:var(--muted);user-select:none}
+input,select,textarea{width:100%;padding:12px 13px;border-radius:11px;border:1px solid var(--line);background:#0e172b;color:var(--text);font:inherit}textarea{min-height:110px;resize:vertical}.filters{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 22px}.chip{background:#17223b;color:var(--muted);border:1px solid var(--line);padding:4px 10px;border-radius:999px;font-size:12px}.chip.active{background:#344a80;color:white;border-color:#7898ee}
+.tag-checks{display:flex;flex-wrap:wrap;gap:5px}
+.tag-check{display:flex;align-items:center;gap:4px;background:#0e172b;border:1px solid var(--line);border-radius:999px;padding:3px 9px;cursor:pointer;font-size:12px;color:var(--muted);user-select:none}
 .tag-check:has(input:checked){background:#344a80;color:#fff;border-color:#7898ee}
-.tag-check input{accent-color:#7c9cff;margin:0}
-.tag-badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
-.tag-badge{font-size:11px;background:#243456;color:#c5d4f5;border-radius:999px;padding:2px 8px}
-.edit-tags-box{margin-top:12px;padding:12px;background:#0e172b;border:1px solid var(--line);border-radius:12px}
+.tag-check input{accent-color:#7c9cff;margin:0;width:13px;height:13px}
+.tag-badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.tag-badge{font-size:10px;background:#243456;color:#c5d4f5;border-radius:999px;padding:1px 7px}
+.edit-tags-box{margin-top:12px;padding:12px;background:#0e172b;border:1px solid var(--line);border-radius:12px;display:none}
+.edit-tags-box.show{display:block}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:15px}.card{background:linear-gradient(160deg,#192541,#121a2e);border:1px solid var(--line);border-radius:17px;padding:17px;cursor:pointer;transition:.18s}.card:hover{transform:translateY(-3px);border-color:#718fe0}.thumb{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:11px;background:#0e172b;border:1px solid var(--line);display:block}.thumb-placeholder{width:100%;aspect-ratio:16/9;border-radius:11px;background:linear-gradient(135deg,#26385e,#121a2e);border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);font-size:13px;letter-spacing:.12em}.detail-thumb{width:100%;max-height:300px;aspect-ratio:16/9;object-fit:contain;background:#0e172b;border-radius:12px;border:1px solid var(--line)}.preview-thumb{display:none;width:100%;max-height:220px;aspect-ratio:16/9;object-fit:contain;background:#0e172b;border-radius:10px;margin-top:8px}.card h3{margin:10px 0 5px}.meta,.muted{color:var(--muted);font-size:13px}.card p{color:#c6d0e8;min-height:42px;font-size:14px}.cardfoot{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
 .empty{padding:45px 15px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:16px}
 .modal{position:fixed;inset:0;background:#050914c9;display:none;align-items:center;justify-content:center;padding:16px;z-index:10}.modal.show{display:flex}.dialog{width:min(560px,100%);max-height:90vh;overflow:auto;background:#151f36;border:1px solid var(--line);border-radius:20px;padding:22px;box-shadow:0 25px 80px #0009}.dialog h2{margin-top:0}.field{margin:13px 0}.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px}.close{float:right;background:transparent;color:var(--muted);font-size:20px;padding:2px 8px}
@@ -192,14 +193,23 @@ async function openDetail(id){
   const tags=gameTags(g);
   const canEdit=isAdmin||g.owner_id===currentUser?.id;
   $("detailContent").innerHTML=`${g.thumbnail_path?`<img class="detail-thumb" src="${db.storage.from(BUCKET).getPublicUrl(g.thumbnail_path).data.publicUrl}" alt="${escapeHtml(g.title)}のサムネイル">`:'<div class="thumb-placeholder">NO IMAGE</div>'}<h2>${escapeHtml(g.title)}</h2><div class="muted">作者: ${escapeHtml(g.creator)}</div><div class="tag-badges" style="margin:8px 0">${tags.map(t=>`<span class="tag-badge">${escapeHtml(t)}</span>`).join("")||'<span class="muted">タグなし</span>'}</div><p style="white-space:pre-wrap;line-height:1.7">${escapeHtml(g.description||"説明はありません。")}</p><div class="muted">ファイル: ${escapeHtml(g.file_name||"game file")} · ${(Number(g.file_size||0)/1024/1024).toFixed(2)} MB${playable?' · <span style="color:var(--accent)">ブラウザでプレイ可能</span>':""}</div>
-  ${canEdit?`<div class="edit-tags-box"><label class="muted">タグを編集（投稿者・管理者）</label><div class="tag-checks" id="editTagChecks"></div><div class="actions" style="margin-top:10px"><button id="saveTagsBtn" class="secondary">タグを保存</button></div></div>`:""}
-  <div class="actions">${playable?'<button id="playGame">▶ ブラウザでプレイ</button>':""}<button id="downloadGame">⬇ ダウンロード</button>${canDelete?'<button class="danger" id="deleteGame">削除</button>':""}</div><div class="reviews" id="reviewSection"></div>`;
+  <div class="actions">${playable?'<button id="playGame">▶ ブラウザでプレイ</button>':""}<button id="downloadGame">⬇ ダウンロード</button>${canEdit?'<button class="secondary" id="editTagsBtn">タグ変更</button>':""}${canDelete?'<button class="danger" id="deleteGame">削除</button>':""}</div>
+  ${canEdit?`<div class="edit-tags-box" id="editTagsBox"><label class="muted">タグを編集</label><div class="tag-checks" id="editTagChecks"></div><div class="actions" style="margin-top:10px"><button id="saveTagsBtn">保存</button><button class="secondary" id="cancelTagsBtn">キャンセル</button></div></div>`:""}<div class="reviews" id="reviewSection"></div>`;
   showModal("detailModal");
   $("downloadGame").onclick=()=>downloadGame(g);
   if(playable) $("playGame").onclick=()=>playGame(g);
   if(canDelete)$("deleteGame").onclick=()=>deleteGame(g);
   if(canEdit){
     buildTagChecks("editTagChecks", tags);
+    $("editTagsBtn").onclick=()=>{
+      $("editTagsBox").classList.add("show");
+      $("editTagsBtn").style.display="none";
+    };
+    $("cancelTagsBtn").onclick=()=>{
+      $("editTagsBox").classList.remove("show");
+      $("editTagsBtn").style.display="";
+      buildTagChecks("editTagChecks", tags);
+    };
     $("saveTagsBtn").onclick=async()=>{
       const newTags=getCheckedTags("editTagChecks");
       if(!newTags.length){notice("タグを1つ以上選んでください。",true);return;}
@@ -210,9 +220,9 @@ async function openDetail(id){
         g.tags=newTags;g.category=newTags[0];
         notice("タグを更新しました。");
         renderGames();
-        openDetail(g.id); // refresh UI
+        openDetail(g.id);
       }catch(e){notice("タグを保存できませんでした: "+e.message,true);}
-      finally{btn.disabled=false;btn.textContent="タグを保存";}
+      finally{btn.disabled=false;btn.textContent="保存";}
     };
   }
   loadReviews(g.id);
