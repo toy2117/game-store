@@ -30,6 +30,12 @@ footer{text-align:center;color:var(--muted);padding:35px 15px;font-size:12px}
 .play-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
 .play-toolbar .muted{flex:1;min-width:140px;font-size:13px}
 .dialog.play-dialog{width:min(960px,100%);max-height:95vh}
+.reply-list{margin:10px 0 0 12px;padding-left:12px;border-left:2px solid var(--line)}
+.reply{background:#0e172b;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px}
+.reply-form{margin-top:8px;padding:10px;background:#0e172b;border:1px solid var(--line);border-radius:10px;display:none}
+.reply-form.show{display:block}
+.reply-form textarea{min-height:60px;margin:6px 0}
+.reply-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 @media(max-width:600px){header{padding:12px 14px}.brand{font-size:18px}main{margin:18px auto}.hero{padding:20px}}
 </style>
 </head>
@@ -74,7 +80,7 @@ const BUCKET = "game-files";
 const MAX_FILE_SIZE = 14 * 1024 * 1024;
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-let ratingStats = {}, currentReviews = [], draftRating = 0;
+let ratingStats = {}, currentReviews = [], currentReplies = {}, draftRating = 0;
 let currentUser = null, isAdmin = false, allGames = [], activeCategory = "すべて", selectedGame = null;
 let currentPlayUrl = null;
 const categories = ["すべて","RPG","アクション","パズル","シミュレーション","恋愛","その他"];
@@ -210,11 +216,23 @@ function paintPicker(){document.querySelectorAll("#starPicker .star-btn").forEac
 async function loadReviews(gameId){
   const box=$("reviewSection");if(!box)return;
   box.innerHTML='<div class="muted">レビューを読み込み中…</div>';
-  // 実カラム: id, game_id, owner_id, rating, comment, created_at
-  const {data,error}=await db.from("game_reviews").select("id,game_id,owner_id,rating,comment,created_at").eq("game_id",gameId).order("created_at",{ascending:false});
+  const {data,error}=await db.from("game_reviews").select("id,game_id,owner_id,author_name,rating,comment,created_at").eq("game_id",gameId).order("created_at",{ascending:false});
   if(!selectedGame||String(selectedGame.id)!==String(gameId))return;
   if(error){box.innerHTML='<div class="muted">レビューを読み込めませんでした。('+escapeHtml(error.message)+')</div>';return;}
   currentReviews=data||[];
+  // 返信を一括取得
+  currentReplies={};
+  if(currentReviews.length){
+    const ids=currentReviews.map(r=>r.id);
+    const {data:replies,error:rerr}=await db.from("game_review_replies").select("id,review_id,owner_id,author_name,comment,created_at").in("review_id",ids).order("created_at",{ascending:true});
+    if(!rerr&&replies){
+      replies.forEach(rp=>{
+        const k=String(rp.review_id);
+        if(!currentReplies[k])currentReplies[k]=[];
+        currentReplies[k].push(rp);
+      });
+    }
+  }
   const mine=currentReviews.find(r=>r.owner_id===currentUser?.id);
   draftRating=mine?mine.rating:0;
   renderReviews(mine);
@@ -224,22 +242,42 @@ function renderReviews(mine){
   const n=currentReviews.length,avg=n?currentReviews.reduce((s,r)=>s+r.rating,0)/n:0;
   ratingStats[String(selectedGame.id)]={count:n,avg};renderGames();
   let savedName="";try{savedName=localStorage.getItem("gs_name")||"";}catch(_){}
-  const name=savedName;
+  const name=mine?(mine.author_name||savedName):savedName;
   box.innerHTML=`<h3>⭐ 評価とコメント</h3>
   <div class="rate-summary">${n?`<span class="rate-big">${avg.toFixed(1)}</span><span class="stars">${starText(avg)}</span><span class="muted">${n}件の評価</span>`:'<span class="muted">まだ評価がありません。最初の評価をつけてみよう！</span>'}</div>
   <div class="review-form"><label>${mine?"あなたのレビューを編集":"あなたの評価 *"}</label>
     <div class="star-picker" id="starPicker">${[1,2,3,4,5].map(v=>`<button type="button" class="star-btn" data-v="${v}" aria-label="${v}つ星">★</button>`).join("")}</div>
-    <div class="field" style="margin:8px 0"><input id="reviewName" maxlength="30" placeholder="表示名（空欄なら「名無しさん」）※現在DB未保存" value="${escapeHtml(name)}"></div>
+    <div class="field" style="margin:8px 0"><input id="reviewName" maxlength="30" placeholder="表示名（空欄なら「名無しさん」）" value="${escapeHtml(name)}"></div>
     <div class="field" style="margin:8px 0"><textarea id="reviewComment" maxlength="500" style="min-height:80px" placeholder="コメント（任意・500文字まで）">${escapeHtml(mine?.comment||"")}</textarea></div>
     <button id="submitReview">${mine?"更新する":"投稿する"}</button><div id="reviewMsg" class="formmsg"></div></div>
   <div id="reviewList">${n?currentReviews.map(r=>{
     const own=r.owner_id===currentUser?.id,canDel=own||isAdmin;
-    const displayName = own ? (savedName || "名無しさん") : "名無しさん";
-    return `<div class="review"><div class="review-head"><div><span class="stars">${starText(r.rating)}</span> <strong>${escapeHtml(displayName)}</strong>${own?'<span class="badge">あなた</span>':""}</div><div class="muted">${new Date(r.created_at).toLocaleDateString("ja-JP")}${canDel?` <button class="danger mini" data-del="${escapeHtml(r.id)}">${own?"削除":"管理者として削除"}</button>`:""}</div></div>${r.comment?`<p>${escapeHtml(r.comment)}</p>`:""}</div>`;}).join(""):""}</div>`;
+    const displayName = r.author_name || (own ? (savedName || "名無しさん") : "名無しさん");
+    const rps = currentReplies[String(r.id)] || [];
+    const repliesHtml = rps.map(rp=>{
+      const rpOwn=rp.owner_id===currentUser?.id, rpCanDel=rpOwn||isAdmin;
+      return `<div class="reply"><div class="review-head"><div><strong>${escapeHtml(rp.author_name||"名無しさん")}</strong>${rpOwn?'<span class="badge">あなた</span>':""}</div><div class="muted">${new Date(rp.created_at).toLocaleDateString("ja-JP")}${rpCanDel?` <button class="danger mini" data-del-reply="${escapeHtml(rp.id)}">削除</button>`:""}</div></div><p>${escapeHtml(rp.comment||"")}</p></div>`;
+    }).join("");
+    return `<div class="review" data-review-id="${escapeHtml(r.id)}"><div class="review-head"><div><span class="stars">${starText(r.rating)}</span> <strong>${escapeHtml(displayName)}</strong>${own?'<span class="badge">あなた</span>':""}</div><div class="muted">${new Date(r.created_at).toLocaleDateString("ja-JP")}${canDel?` <button class="danger mini" data-del="${escapeHtml(r.id)}">${own?"削除":"管理者として削除"}</button>`:""}</div></div>${r.comment?`<p>${escapeHtml(r.comment)}</p>`:""}
+    <div class="reply-actions"><button class="secondary mini" data-reply-toggle="${escapeHtml(r.id)}">💬 返信</button></div>
+    <div class="reply-form" id="replyForm-${escapeHtml(r.id)}">
+      <input maxlength="30" placeholder="表示名" value="${escapeHtml(savedName)}" data-reply-name="${escapeHtml(r.id)}">
+      <textarea maxlength="400" placeholder="返信を書く…" data-reply-comment="${escapeHtml(r.id)}"></textarea>
+      <button class="mini" data-reply-submit="${escapeHtml(r.id)}">返信する</button>
+    </div>
+    ${rps.length?`<div class="reply-list">${repliesHtml}</div>`:""}
+    </div>`;
+  }).join(""):""}</div>`;
   paintPicker();
   box.querySelectorAll("#starPicker .star-btn").forEach(b=>b.onclick=()=>{draftRating=Number(b.dataset.v);paintPicker();});
   $("submitReview").onclick=submitReview;
   box.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>deleteReview(b.dataset.del));
+  box.querySelectorAll("[data-del-reply]").forEach(b=>b.onclick=()=>deleteReply(b.dataset.delReply));
+  box.querySelectorAll("[data-reply-toggle]").forEach(b=>b.onclick=()=>{
+    const form=$("replyForm-"+b.dataset.replyToggle);
+    if(form)form.classList.toggle("show");
+  });
+  box.querySelectorAll("[data-reply-submit]").forEach(b=>b.onclick=()=>submitReply(b.dataset.replySubmit));
 }
 async function submitReview(){
   if(!draftRating){reviewMsg("星の数（1〜5）を選んでください。",true);return;}
@@ -247,7 +285,7 @@ async function submitReview(){
   const btn=$("submitReview");btn.disabled=true;
   try{
     if(!currentUser)await ensureSession();
-    const row={game_id:selectedGame.id,owner_id:currentUser.id,rating:draftRating,comment:comment||null};
+    const row={game_id:selectedGame.id,owner_id:currentUser.id,author_name:name,rating:draftRating,comment:comment||null,updated_at:new Date().toISOString()};
     const {error}=await db.from("game_reviews").upsert(row,{onConflict:"game_id,owner_id"});
     if(error)throw error;
     try{localStorage.setItem("gs_name",name);}catch(_){}
@@ -257,11 +295,34 @@ async function submitReview(){
 async function deleteReview(id){
   const r=currentReviews.find(x=>String(x.id)===String(id));if(!r)return;
   const own=r.owner_id===currentUser?.id;
-  if(!confirm(own?"自分のレビューを削除しますか？（評価も取り消されます）":"このレビューを削除しますか？（管理者操作）"))return;
+  if(!confirm(own?"自分のレビューを削除しますか？（評価と返信も消えます）":"このレビューを削除しますか？（管理者操作）"))return;
   const {data,error}=await db.from("game_reviews").delete().eq("id",id).select();
   if(error){reviewMsg("削除できませんでした: "+error.message,true);return;}
   if(!data||!data.length){reviewMsg("削除する権限がありません。",true);return;}
   await loadReviews(selectedGame.id);reviewMsg("レビューを削除しました。");
+}
+async function submitReply(reviewId){
+  const nameEl=document.querySelector(`[data-reply-name="${reviewId}"]`);
+  const commentEl=document.querySelector(`[data-reply-comment="${reviewId}"]`);
+  const name=(nameEl?.value||"").trim()||"名無しさん";
+  const comment=(commentEl?.value||"").trim();
+  if(!comment){notice("返信内容を入力してください。",true);return;}
+  try{
+    if(!currentUser)await ensureSession();
+    const row={review_id:reviewId,owner_id:currentUser.id,author_name:name,comment};
+    const {error}=await db.from("game_review_replies").insert(row);
+    if(error)throw error;
+    try{localStorage.setItem("gs_name",name);}catch(_){}
+    await loadReviews(selectedGame.id);
+    notice("返信を投稿しました。");
+  }catch(e){notice("返信できませんでした: "+e.message,true);}
+}
+async function deleteReply(id){
+  if(!confirm("この返信を削除しますか？"))return;
+  const {data,error}=await db.from("game_review_replies").delete().eq("id",id).select();
+  if(error){notice("削除できませんでした: "+error.message,true);return;}
+  if(!data||!data.length){notice("削除する権限がありません。",true);return;}
+  await loadReviews(selectedGame.id);notice("返信を削除しました。");
 }
 $("postBtn").onclick=()=>showModal("postModal");
 $("adminBtn").onclick=()=>showModal("adminModal");
